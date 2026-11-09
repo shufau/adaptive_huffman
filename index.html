@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Rust 檔案動態霍夫曼壓縮工具</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            max-width: 650px; 
+            margin: 40px auto; 
+            padding: 0 20px; 
+            background-color: #121212; /* 深色背景 */
+            color: #e0e0e0; /* 淺色文字 */
+            line-height: 1.6;
+        }
+        h1 {
+            color: #ffffff;
+        }
+        .card { 
+            background: #1e1e1e; /* 卡片深色背景 */
+            padding: 24px; 
+            margin-bottom: 24px; 
+            border-radius: 12px; 
+            border: 1px solid #333; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        h3 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+        input[type="file"] { 
+            margin-bottom: 15px; 
+            display: block; 
+            width: 100%; 
+            color: #e0e0e0;
+        }
+        /* 美化上傳按鈕 */
+        input[type="file"]::file-selector-button {
+            background: #333333;
+            color: #ffffff;
+            border: 1px solid #555555;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 12px;
+            transition: background 0.2s;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background: #4a4a4a;
+        }
+        button { 
+            background: #3b82f6; /* 明亮的藍色 */
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 15px; 
+            font-weight: 600;
+            transition: background 0.2s; 
+        }
+        button:hover { 
+            background: #2563eb; 
+        }
+        .status { 
+            margin-top: 12px; 
+            font-size: 14px; 
+            color: #9ca3af; /* 狀態文字顏色稍暗 */
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📦 Rust 檔案動態霍夫曼壓縮</h1>
+    <p>透過 WebAssembly 在瀏覽器中直接處理檔案，不需上傳至伺服器。</p>
+
+    <!-- 壓縮區塊 -->
+    <div class="card">
+        <h3>1. 壓縮檔案</h3>
+        <input type="file" id="fileToCompress">
+        <button id="compressBtn">壓縮檔案並下載</button>
+        <div class="status" id="compressStatus">狀態：等待 Wasm 載入...</div>
+    </div>
+
+    <!-- 解壓縮區塊 -->
+    <div class="card">
+        <h3>2. 解壓縮檔案</h3>
+        <input type="file" id="fileToDecompress">
+        <button id="decompressBtn">解壓縮檔案並下載</button>
+        <div class="status" id="decompressStatus">狀態：等待 Wasm 載入...</div>
+    </div>
+
+    <!-- 載入 Wasm 模組與檔案處理邏輯 -->
+    <script type="module">
+        import init, { compress_data, decompress_data } from './pkg/adaptive_huffman.js';
+
+        let wasmLoaded = false;
+
+        async function main() {
+            // 初始化 Wasm 執行環境
+            await init();
+            wasmLoaded = true;
+            document.getElementById('compressStatus').innerText = "狀態：Wasm 模組就緒";
+            document.getElementById('decompressStatus').innerText = "狀態：Wasm 模組就緒";
+        }
+
+        main();
+
+        // 輔助函式：觸發瀏覽器下載二進位檔案
+        function downloadFile(uint8Array, filename) {
+            const blob = new Blob([uint8Array]);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 壓縮按鈕事件
+        document.getElementById('compressBtn').addEventListener('click', async () => {
+            if (!wasmLoaded) return alert("Wasm 尚未載入完成！");
+            const fileInput = document.getElementById('fileToCompress');
+            if (fileInput.files.length === 0) return alert("請先選擇要壓縮的檔案！");
+
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+            const inputBytes = new Uint8Array(arrayBuffer);
+
+            document.getElementById('compressStatus').innerText = "壓縮中...";
+
+            // 使用 setTimeout 讓 UI 有時間更新狀態文字
+            setTimeout(() => {
+                const compressedBytes = compress_data(inputBytes);
+                document.getElementById('compressStatus').innerText = 
+                    `壓縮成功！原始大小: ${inputBytes.length} bytes -> 壓縮後: ${compressedBytes.length} bytes`;
+                downloadFile(compressedBytes, file.name + ".huff");
+            }, 10);
+        });
+
+        // 解壓縮按鈕事件
+        document.getElementById('decompressBtn').addEventListener('click', async () => {
+            if (!wasmLoaded) return alert("Wasm 尚未載入完成！");
+            const fileInput = document.getElementById('fileToDecompress');
+            if (fileInput.files.length === 0) return alert("請先選擇要解壓縮的檔案！");
+
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+            const inputBytes = new Uint8Array(arrayBuffer);
+
+            document.getElementById('decompressStatus').innerText = "解壓縮中...";
+
+            // 使用 setTimeout 讓 UI 有時間更新狀態文字
+            setTimeout(() => {
+                const decompressedBytes = decompress_data(inputBytes);
+                document.getElementById('decompressStatus').innerText = "解壓縮完成！";
+
+                let originalName = file.name.endsWith(".huff") 
+                    ? file.name.slice(0, -5) 
+                    : "decompressed_" + file.name;
+
+                downloadFile(decompressedBytes, originalName);
+            }, 10);
+        });
+    </script>
+</body>
+</html>
