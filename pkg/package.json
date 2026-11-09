@@ -1,0 +1,15 @@
+{
+  "name": "adaptive_huffman",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "adaptive_huffman_bg.wasm",
+    "adaptive_huffman.js",
+    "adaptive_huffman.d.ts"
+  ],
+  "main": "adaptive_huffman.js",
+  "types": "adaptive_huffman.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
